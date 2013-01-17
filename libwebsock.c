@@ -44,16 +44,18 @@ static PyObject *onopen_callback = NULL;
 static PyObject *onclose_callback = NULL;
 static PyObject *onmessage_callback = NULL;
 
-static PyObject *libwebsock_onopen(PyObject *self, PyObject *args);
-static PyObject *libwebsock_onclose(PyObject *self, PyObject *args);
-static PyObject *libwebsock_onmessage(PyObject *self, PyObject *args);
-static PyObject *libwebsock_run(PyObject *self, PyObject *args);
+static PyObject *libwebsockpy_onopen(PyObject *self, PyObject *args);
+static PyObject *libwebsockpy_onclose(PyObject *self, PyObject *args);
+static PyObject *libwebsockpy_onmessage(PyObject *self, PyObject *args);
+static PyObject *libwebsockpy_run(PyObject *self, PyObject *args);
+static PyObject *libwebsockpy_send(PyObject *self, PyObject *args);
 
 static PyMethodDef LibwebsockMethods[] = {
-  {"onopen", libwebsock_onopen, METH_VARARGS, "Set onopen callback"},
-  {"onclose", libwebsock_onclose, METH_VARARGS, "Set onclose callback"},
-  {"onmessage", libwebsock_onmessage, METH_VARARGS, "Set onmessage callback"},
-  {"run", libwebsock_run, METH_VARARGS, "Run WebSocket server"},
+  {"onopen", libwebsockpy_onopen, METH_VARARGS, "Set onopen callback"},
+  {"onclose", libwebsockpy_onclose, METH_VARARGS, "Set onclose callback"},
+  {"onmessage", libwebsockpy_onmessage, METH_VARARGS, "Set onmessage callback"},
+  {"run", libwebsockpy_run, METH_VARARGS, "Run WebSocket server"},
+  {"send", libwebsockpy_send, METH_VARARGS, "Send WebSocket Message to client"},
   {NULL, NULL, 0, NULL}
 };
 
@@ -115,9 +117,26 @@ PyMODINIT_FUNC initlibwebsock(void)
   PyModule_AddObject(m, "ClientState", (PyObject *)&libwebsock_ClientStateType);
 }
 
-static PyObject *libwebsock_run(PyObject *self, PyObject *args)
+static PyObject *libwebsockpy_send(PyObject *self, PyObject *args)
 {
-  PyObject *result = NULL;
+  char *message;
+  libwebsock_client_state *state;
+  libwebsock_ClientStateObject *internalStateObject;
+  PyObject *stateObject;
+
+  if(!PyArg_ParseTuple(args, "Os", &stateObject, &message)) {
+    return NULL;
+  }
+
+  internalStateObject = (libwebsock_ClientStateObject *)stateObject;
+  state = internalStateObject->state;
+  libwebsock_send_text(state, message);
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+static PyObject *libwebsockpy_run(PyObject *self, PyObject *args)
+{
   char *port;
 
   if(!PyArg_ParseTuple(args, "s", &port)) {
@@ -134,7 +153,7 @@ static PyObject *libwebsock_run(PyObject *self, PyObject *args)
 
 
 
-static PyObject *libwebsock_onopen(PyObject *self, PyObject *args)
+static PyObject *libwebsockpy_onopen(PyObject *self, PyObject *args)
 {
   PyObject *result = NULL;
   PyObject *temp;
@@ -153,7 +172,7 @@ static PyObject *libwebsock_onopen(PyObject *self, PyObject *args)
   return result;
 }
 
-static PyObject *libwebsock_onclose(PyObject *self, PyObject *args)
+static PyObject *libwebsockpy_onclose(PyObject *self, PyObject *args)
 {
   PyObject *result = NULL;
   PyObject *temp;
@@ -172,7 +191,7 @@ static PyObject *libwebsock_onclose(PyObject *self, PyObject *args)
   return result;
 }
 
-static PyObject *libwebsock_onmessage(PyObject *self, PyObject *args)
+static PyObject *libwebsockpy_onmessage(PyObject *self, PyObject *args)
 {
   PyObject *result = NULL;
   PyObject *temp;
