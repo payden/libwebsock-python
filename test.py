@@ -2,6 +2,7 @@ import libwebsock
 
 def onopen(client):
   print "Got new client: {0}".format(client)
+  print "Socket: {0}".format(client.sock)
 
 
 def onmessage(client, msg):

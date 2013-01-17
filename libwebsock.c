@@ -14,31 +14,6 @@ typedef struct {
   libwebsock_message *msg;
 } libwebsock_MessageObject;
 
-static PyTypeObject libwebsock_ClientStateType = {
-  PyObject_HEAD_INIT(NULL)
-  0,
-  "libwebsock.ClientState",
-  sizeof(libwebsock_ClientStateObject),
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  Py_TPFLAGS_DEFAULT,
-  "libwebsock objects",
-};
-
 static libwebsock_context *ws_ctx = NULL;
 static PyObject *onopen_callback = NULL;
 static PyObject *onclose_callback = NULL;
@@ -49,6 +24,7 @@ static PyObject *libwebsockpy_onclose(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_onmessage(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_run(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_send(PyObject *self, PyObject *args);
+static PyObject *libwebsockpy_ClientState_getsockfd(libwebsock_ClientStateObject *ClientState, void *closure);
 
 static PyMethodDef LibwebsockMethods[] = {
   {"onopen", libwebsockpy_onopen, METH_VARARGS, "Set onopen callback"},
@@ -58,6 +34,54 @@ static PyMethodDef LibwebsockMethods[] = {
   {"send", libwebsockpy_send, METH_VARARGS, "Send WebSocket Message to client"},
   {NULL, NULL, 0, NULL}
 };
+
+static PyGetSetDef libwebsock_ClientStateGetSet[] = {
+  {"sock", (getter)libwebsockpy_ClientState_getsockfd, (setter)0, "socket descriptor", NULL},
+  {NULL}
+};
+
+static PyTypeObject libwebsock_ClientStateType = {
+  PyObject_HEAD_INIT(NULL)
+  0,                                    /*ob_size*/
+  "libwebsock.ClientState",             /*tp_name*/
+  sizeof(libwebsock_ClientStateObject), /*tp_basicsize*/
+  0,                                    /*tp_itemsize*/
+  0,                                    /*tp_dealloc*/
+  0,                                    /*tp_print*/
+  0,                                    /*tp_getattr*/
+  0,                                    /*tp_setattr*/
+  0,                                    /*tp_compare*/
+  0,                                    /*tp_repr*/
+  0,                                    /*tp_as_number*/
+  0,                                    /*tp_as_sequence*/
+  0,                                    /*tp_as_mapping*/
+  0,                                    /*tp_hash*/
+  0,                                    /*tp_call*/
+  0,                                    /*tp_str*/
+  0,                                    /*tp_getattro*/
+  0,                                    /*tp_setattro*/
+  0,                                    /*tp_as_buffer*/
+  Py_TPFLAGS_DEFAULT,                   /*tp_flags*/
+  "libwebsock objects",                 /*tp_doc*/
+  0,                                    /*tp_traverse*/
+  0,                                    /*tp_clear*/
+  0,                                    /*tp_richcompare*/
+  0,                                    /*tp_weaklistoffset*/
+  0,                                    /*tp_iter*/
+  0,                                    /*tp_iternext*/
+  0,                                    /*tp_methods*/
+  0,                                    /*tp_members*/
+  libwebsock_ClientStateGetSet,         /*tp_getset*/
+  0,                                    /*tp_base*/
+  0,                                    /*tp_dict*/
+  0,                                    /*tp_descr_get*/
+  0,                                    /*tp_descr_set*/
+  0,                                    /*tp_dictoffset*/
+  0,                                    /*tp_init*/
+  0,                                    /*tp_alloc*/
+  0,                                    /*tp_new*/
+};
+
 
 static int ws_onopen(libwebsock_client_state *state)
 {
@@ -115,6 +139,11 @@ PyMODINIT_FUNC initlibwebsock(void)
   m = Py_InitModule("libwebsock", LibwebsockMethods);
   Py_INCREF(&libwebsock_ClientStateType);
   PyModule_AddObject(m, "ClientState", (PyObject *)&libwebsock_ClientStateType);
+}
+
+static PyObject *libwebsockpy_ClientState_getsockfd(libwebsock_ClientStateObject *ClientState, void *closure)
+{
+  return PyInt_FromLong(ClientState->state->sockfd);
 }
 
 static PyObject *libwebsockpy_send(PyObject *self, PyObject *args)
