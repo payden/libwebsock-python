@@ -9,10 +9,6 @@ typedef struct {
   libwebsock_client_state *state;
 } libwebsock_ClientStateObject;
 
-typedef struct {
-  PyObject_HEAD
-  libwebsock_message *msg;
-} libwebsock_MessageObject;
 
 static libwebsock_context *ws_ctx = NULL;
 static PyObject *onopen_callback = NULL;
@@ -25,6 +21,7 @@ static PyObject *libwebsockpy_onmessage(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_run(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_send(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_ClientState_getsockfd(libwebsock_ClientStateObject *ClientState, void *closure);
+static PyObject *libwebsockpy_ClientState_getaddr(libwebsock_ClientStateObject *ClientState, void *closure);
 
 static PyMethodDef LibwebsockMethods[] = {
   {"onopen", libwebsockpy_onopen, METH_VARARGS, "Set onopen callback"},
@@ -37,6 +34,7 @@ static PyMethodDef LibwebsockMethods[] = {
 
 static PyGetSetDef libwebsock_ClientStateGetSet[] = {
   {"sock", (getter)libwebsockpy_ClientState_getsockfd, (setter)0, "socket descriptor", NULL},
+  {"addr", (getter)libwebsockpy_ClientState_getaddr, (setter)0, "connecting address", NULL},
   {NULL}
 };
 
@@ -96,6 +94,7 @@ static int ws_onopen(libwebsock_client_state *state)
     internalStateObject->state = state;
     arglist = Py_BuildValue("(O)", stateObject);
     PyObject_CallObject(onopen_callback, arglist);
+    Py_DECREF(stateObject);
     Py_DECREF(arglist);
   }
   return 0;
@@ -104,6 +103,19 @@ static int ws_onopen(libwebsock_client_state *state)
 static int ws_onclose(libwebsock_client_state *state)
 {
   //generate python client state object and call python callable
+  PyObject *stateObject;
+  PyObject *arglist;
+
+  libwebsock_ClientStateObject *internalStateObject;
+  if(onclose_callback) {
+    stateObject = PyObject_CallObject((PyObject *)&libwebsock_ClientStateType, NULL);
+    internalStateObject = (libwebsock_ClientStateObject *)stateObject;
+    internalStateObject->state = state;
+    arglist = Py_BuildValue("(O)", stateObject);
+    PyObject_CallObject(onclose_callback, arglist);
+    Py_DECREF(stateObject);
+    Py_DECREF(arglist);
+  }
   return 0;
 }
 
@@ -122,6 +134,7 @@ static int ws_onmessage(libwebsock_client_state *state, libwebsock_message *msg)
     internalStateObject->state = state;
     arglist = Py_BuildValue("(Os)", stateObject, msg->payload);
     PyObject_CallObject(onmessage_callback, arglist);
+    Py_DECREF(stateObject);
     Py_DECREF(arglist);
   }
 
@@ -139,6 +152,19 @@ PyMODINIT_FUNC initlibwebsock(void)
   m = Py_InitModule("libwebsock", LibwebsockMethods);
   Py_INCREF(&libwebsock_ClientStateType);
   PyModule_AddObject(m, "ClientState", (PyObject *)&libwebsock_ClientStateType);
+}
+
+static PyObject *libwebsockpy_ClientState_getaddr(libwebsock_ClientStateObject *ClientState, void *closure)
+{
+  char hbuf[NI_MAXHOST];
+  int rv;
+  rv = getnameinfo((struct sockaddr *)ClientState->state->sa, sizeof(struct sockaddr_storage), hbuf, sizeof(hbuf), NULL, 0, NI_NUMERICHOST);
+  if(rv == 0) {
+    return PyString_FromString(hbuf);
+  } else {
+    fprintf(stderr, "Error getting ip address.\n");
+    return NULL;
+  }
 }
 
 static PyObject *libwebsockpy_ClientState_getsockfd(libwebsock_ClientStateObject *ClientState, void *closure)
