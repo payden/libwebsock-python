@@ -14,12 +14,14 @@ static libwebsock_context *ws_ctx = NULL;
 static PyObject *onopen_callback = NULL;
 static PyObject *onclose_callback = NULL;
 static PyObject *onmessage_callback = NULL;
+static PyObject *connected_clients_list = NULL;
 
 static PyObject *libwebsockpy_onopen(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_onclose(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_onmessage(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_run(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_send(PyObject *self, PyObject *args);
+static PyObject *libwebsockpy_connected_clients(PyObject *self);
 static PyObject *libwebsockpy_ClientState_getsockfd(libwebsock_ClientStateObject *ClientState, void *closure);
 static PyObject *libwebsockpy_ClientState_getaddr(libwebsock_ClientStateObject *ClientState, void *closure);
 
@@ -29,6 +31,7 @@ static PyMethodDef LibwebsockMethods[] = {
   {"onmessage", libwebsockpy_onmessage, METH_VARARGS, "Set onmessage callback"},
   {"run", libwebsockpy_run, METH_VARARGS, "Run WebSocket server"},
   {"send", libwebsockpy_send, METH_VARARGS, "Send WebSocket Message to client"},
+  {"connected_clients", (PyCFunction)libwebsockpy_connected_clients, METH_NOARGS, "Return list of connected clients"},
   {NULL, NULL, 0, NULL}
 };
 
@@ -87,14 +90,18 @@ static int ws_onopen(libwebsock_client_state *state)
   PyObject *arglist;
 
   libwebsock_ClientStateObject *internalStateObject;
-  //generate python client state object and call python callable
+
+  stateObject = PyObject_CallObject((PyObject *)&libwebsock_ClientStateType, NULL);
+  internalStateObject = (libwebsock_ClientStateObject *)stateObject;
+  internalStateObject->state = state;
+
+  if(PyList_Append(connected_clients_list, stateObject) != 0) {
+    Py_DECREF(stateObject);
+  }
+
   if(onopen_callback) {
-    stateObject = PyObject_CallObject((PyObject *)&libwebsock_ClientStateType, NULL);
-    internalStateObject = (libwebsock_ClientStateObject *)stateObject;
-    internalStateObject->state = state;
     arglist = Py_BuildValue("(O)", stateObject);
     PyObject_CallObject(onopen_callback, arglist);
-    Py_DECREF(stateObject);
     Py_DECREF(arglist);
   }
   return 0;
@@ -103,18 +110,32 @@ static int ws_onopen(libwebsock_client_state *state)
 static int ws_onclose(libwebsock_client_state *state)
 {
   //generate python client state object and call python callable
-  PyObject *stateObject;
+  PyObject *stateObject = NULL;
   PyObject *arglist;
 
-  libwebsock_ClientStateObject *internalStateObject;
-  if(onclose_callback) {
-    stateObject = PyObject_CallObject((PyObject *)&libwebsock_ClientStateType, NULL);
-    internalStateObject = (libwebsock_ClientStateObject *)stateObject;
-    internalStateObject->state = state;
-    arglist = Py_BuildValue("(O)", stateObject);
-    PyObject_CallObject(onclose_callback, arglist);
+  PyObject **clients_array;
+
+  Py_ssize_t clients_len;
+  int clients_idx;
+
+  clients_len = PySequence_Size(connected_clients_list);
+  clients_array = PySequence_Fast_ITEMS(connected_clients_list);
+
+  for(clients_idx = 0; clients_idx < clients_len; clients_array++, clients_idx++) {
+    if(*clients_array && ((libwebsock_ClientStateObject *)*clients_array)->state == state) {
+      stateObject = *clients_array;
+      break;
+    }
+  }
+
+  if(stateObject) {
+    PySequence_DelItem(connected_clients_list, PySequence_Index(connected_clients_list, stateObject));
+    if(onclose_callback) {
+      arglist = Py_BuildValue("(O)", stateObject);
+      PyObject_CallObject(onclose_callback, arglist);
+      Py_DECREF(arglist);
+    }
     Py_DECREF(stateObject);
-    Py_DECREF(arglist);
   }
   return 0;
 }
@@ -123,18 +144,27 @@ static int ws_onmessage(libwebsock_client_state *state, libwebsock_message *msg)
 {
   //generate python objects and call python callable
 
-  PyObject *stateObject;
+  PyObject *stateObject = NULL;
   PyObject *arglist;
 
-  libwebsock_ClientStateObject *internalStateObject;
+  PyObject **clients_array;
 
-  if(onmessage_callback) {
-    stateObject = PyObject_CallObject((PyObject *)&libwebsock_ClientStateType, NULL);
-    internalStateObject = (libwebsock_ClientStateObject *)stateObject;
-    internalStateObject->state = state;
+  Py_ssize_t clients_len;
+  int clients_idx;
+
+  clients_len = PySequence_Size(connected_clients_list);
+  clients_array = PySequence_Fast_ITEMS(connected_clients_list);
+
+  for(clients_idx = 0; clients_idx < clients_len; clients_array++, clients_idx++) {
+    if(*clients_array && ((libwebsock_ClientStateObject *)*clients_array)->state == state) {
+      stateObject = *clients_array;
+      break;
+    }
+  }
+
+  if(onmessage_callback && stateObject) {
     arglist = Py_BuildValue("(Os)", stateObject, msg->payload);
     PyObject_CallObject(onmessage_callback, arglist);
-    Py_DECREF(stateObject);
     Py_DECREF(arglist);
   }
 
@@ -145,10 +175,13 @@ PyMODINIT_FUNC initlibwebsock(void)
 {
   PyObject *m;
   libwebsock_ClientStateType.tp_new = PyType_GenericNew;
+
   if(PyType_Ready(&libwebsock_ClientStateType) < 0) {
     return;
   }
+
   ws_ctx = libwebsock_init();
+  connected_clients_list = PyList_New(0);
   m = Py_InitModule("libwebsock", LibwebsockMethods);
   Py_INCREF(&libwebsock_ClientStateType);
   PyModule_AddObject(m, "ClientState", (PyObject *)&libwebsock_ClientStateType);
@@ -263,5 +296,11 @@ static PyObject *libwebsockpy_onmessage(PyObject *self, PyObject *args)
     result = Py_None;
   }
   return result;
+}
+
+static PyObject *libwebsockpy_connected_clients(PyObject *self)
+{
+  Py_INCREF(connected_clients_list);
+  return connected_clients_list;
 }
 

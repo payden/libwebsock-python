@@ -1,17 +1,21 @@
 import libwebsock
-import gc
+
 
 def onopen(client):
-  print "New Socket: {0}".format(client.sock)
-  print "Address: {0}".format(client.addr)
+  print "New Client: {0}".format(client)
+  print "Current conn list: {0}".format(libwebsock.connected_clients())
 
 def onclose(client):
-  print "Closing socket: {0}".format(client.sock)
+  print "Closing client: {0}".format(client)
+  print "Current conn list: {0}".format(libwebsock.connected_clients())
 
 def onmessage(client, msg):
   print "Client {0} sent message: {1}".format(client, msg)
-  # echo message back
-  libwebsock.send(client, msg)
+  # echo message back to all clients excluding who sent it
+  for c in libwebsock.connected_clients():
+    if c != client:
+      print "Sending message from {0} to {1}".format(client, c)
+      libwebsock.send(c, msg)
 
 
 libwebsock.onclose(onclose)
