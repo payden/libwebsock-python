@@ -89,11 +89,8 @@ static int ws_onopen(libwebsock_client_state *state)
   PyObject *stateObject;
   PyObject *arglist;
 
-  libwebsock_ClientStateObject *internalStateObject;
-
   stateObject = PyObject_CallObject((PyObject *)&libwebsock_ClientStateType, NULL);
-  internalStateObject = (libwebsock_ClientStateObject *)stateObject;
-  internalStateObject->state = state;
+  ((libwebsock_ClientStateObject *)stateObject)->state = state;
 
   if(PyList_Append(connected_clients_list, stateObject) != 0) {
     Py_DECREF(stateObject);
@@ -209,15 +206,13 @@ static PyObject *libwebsockpy_send(PyObject *self, PyObject *args)
 {
   char *message;
   libwebsock_client_state *state;
-  libwebsock_ClientStateObject *internalStateObject;
   PyObject *stateObject;
 
   if(!PyArg_ParseTuple(args, "Os", &stateObject, &message)) {
     return NULL;
   }
 
-  internalStateObject = (libwebsock_ClientStateObject *)stateObject;
-  state = internalStateObject->state;
+  state = ((libwebsock_ClientStateObject *)stateObject)->state;
   libwebsock_send_text(state, message);
   Py_INCREF(Py_None);
   return Py_None;
