@@ -4,6 +4,12 @@ import libwebsock
 def onopen(client):
   print "New Client: {0}".format(client)
   print "Current conn list: {0}".format(libwebsock.connected_clients())
+  print "PINGING"
+  libwebsock.ping(client)
+
+def onpong(client):
+  print "Got pong!"
+
 
 def onclose(client):
   print "Closing client: {0}".format(client)
@@ -21,4 +27,5 @@ def onmessage(client, msg):
 libwebsock.onclose(onclose)
 libwebsock.onopen(onopen)
 libwebsock.onmessage(onmessage)
+libwebsock.onpong(onpong)
 libwebsock.run("3333")
