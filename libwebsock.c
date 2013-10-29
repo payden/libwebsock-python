@@ -7,6 +7,7 @@
 typedef struct {
   PyObject_HEAD
   libwebsock_client_state *state;
+  PyObject *data;
 } libwebsock_ClientStateObject;
 
 
@@ -28,6 +29,8 @@ static PyObject *libwebsockpy_close(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_connected_clients(PyObject *self);
 static PyObject *libwebsockpy_ClientState_getsockfd(libwebsock_ClientStateObject *ClientState, void *closure);
 static PyObject *libwebsockpy_ClientState_getaddr(libwebsock_ClientStateObject *ClientState, void *closure);
+static PyObject *libwebsockpy_ClientState_getdata(libwebsock_ClientStateObject *ClientState, void *closure);
+static int libwebsockpy_ClientState_setdata(libwebsock_ClientStateObject *ClientState, PyObject *value, void *closure);
 
 static PyMethodDef LibwebsockMethods[] = {
   {"onopen", libwebsockpy_onopen, METH_VARARGS, "Set onopen callback"},
@@ -45,6 +48,7 @@ static PyMethodDef LibwebsockMethods[] = {
 static PyGetSetDef libwebsock_ClientStateGetSet[] = {
   {"sock", (getter)libwebsockpy_ClientState_getsockfd, (setter)0, "socket descriptor", NULL},
   {"addr", (getter)libwebsockpy_ClientState_getaddr, (setter)0, "connecting address", NULL},
+  {"data", (getter)libwebsockpy_ClientState_getdata, (setter)libwebsockpy_ClientState_setdata, "User data", NULL},
   {NULL}
 };
 
@@ -98,6 +102,8 @@ static int ws_onopen(libwebsock_client_state *state)
 
   stateObject = PyObject_CallObject((PyObject *)&libwebsock_ClientStateType, NULL);
   ((libwebsock_ClientStateObject *)stateObject)->state = state;
+  Py_INCREF(Py_None);
+  ((libwebsock_ClientStateObject *)stateObject)->data = Py_None;
 
   if(PyList_Append(connected_clients_list, stateObject) != 0) {
     Py_DECREF(stateObject);
@@ -216,6 +222,20 @@ PyMODINIT_FUNC initlibwebsock(void)
   m = Py_InitModule("libwebsock", LibwebsockMethods);
   Py_INCREF(&libwebsock_ClientStateType);
   PyModule_AddObject(m, "ClientState", (PyObject *)&libwebsock_ClientStateType);
+}
+
+static PyObject *libwebsockpy_ClientState_getdata(libwebsock_ClientStateObject *ClientState, void *closure)
+{
+  Py_INCREF(ClientState->data);
+  return ClientState->data;
+}
+
+static int libwebsockpy_ClientState_setdata(libwebsock_ClientStateObject *ClientState, PyObject *value, void *closue)
+{
+  Py_DECREF(ClientState->data);
+  Py_INCREF(value);
+  ClientState->data = value;
+  return 0;
 }
 
 static PyObject *libwebsockpy_ClientState_getaddr(libwebsock_ClientStateObject *ClientState, void *closure)
