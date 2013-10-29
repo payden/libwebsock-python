@@ -24,6 +24,7 @@ static PyObject *libwebsockpy_onpong(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_run(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_send(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_ping(PyObject *self, PyObject *args);
+static PyObject *libwebsockpy_close(PyObject *self, PyObject *args);
 static PyObject *libwebsockpy_connected_clients(PyObject *self);
 static PyObject *libwebsockpy_ClientState_getsockfd(libwebsock_ClientStateObject *ClientState, void *closure);
 static PyObject *libwebsockpy_ClientState_getaddr(libwebsock_ClientStateObject *ClientState, void *closure);
@@ -36,6 +37,7 @@ static PyMethodDef LibwebsockMethods[] = {
   {"run", libwebsockpy_run, METH_VARARGS, "Run WebSocket server"},
   {"send", libwebsockpy_send, METH_VARARGS, "Send WebSocket Message to client"},
   {"ping", libwebsockpy_ping, METH_VARARGS, "Send WebSocket PING to client"},
+  {"close", libwebsockpy_close, METH_VARARGS, "Close WebSocket client connection"},
   {"connected_clients", (PyCFunction)libwebsockpy_connected_clients, METH_NOARGS, "Return list of connected clients"},
   {NULL, NULL, 0, NULL}
 };
@@ -263,6 +265,22 @@ static PyObject *libwebsockpy_ping(PyObject *self, PyObject *args)
   Py_INCREF(Py_None);
   return Py_None;
 }
+
+static PyObject *libwebsockpy_close(PyObject *self, PyObject *args)
+{
+  libwebsock_client_state *state;
+  PyObject *stateObject;
+  if (!PyArg_ParseTuple(args, "O", &stateObject)) {
+    return NULL;
+  }
+
+  state = ((libwebsock_ClientStateObject *)stateObject)->state;
+  libwebsock_close(state);
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+
 
 static PyObject *libwebsockpy_run(PyObject *self, PyObject *args)
 {
